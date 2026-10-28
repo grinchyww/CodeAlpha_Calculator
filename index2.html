@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tape Calculator | CodeAlpha</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chivo:wght@500;700&family=Courier+Prime:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --felt: #2a4a3e;
+  --felt-deep: #182c25;
+  --putty-light: #ece6d9;
+  --putty: #d8d0bf;
+  --putty-shade: #b8ae99;
+  --key: #3b322a;
+  --key-edge: #1f1914;
+  --key-text: #f1e8d8;
+  --mustard: #d9a52b;
+  --mustard-edge: #96700f;
+  --signal: #c2432b;
+  --signal-edge: #842815;
+  --glass: #0d1613;
+  --vfd: #8af3d6;
+  --paper: #fbf9f2;
+  --ink: #2a2e60;
+  --ink-red: #b3261e;
+}
+
+body {
+  min-height: 100vh;
+  font-family: "Chivo", system-ui, sans-serif;
+  color: var(--putty-light);
+  background:
+    radial-gradient(ellipse at 50% 85%, rgba(255, 240, 200, 0.10), transparent 60%),
+    radial-gradient(circle at 20% 10%, #33584a, transparent 50%),
+    var(--felt-deep);
+}
+
+.desk {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 24px 16px 28px;
+}
+
+/* ---------- Paper tape ---------- */
+.tape-wrap {
+  position: relative;
+  width: min(250px, 78vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tape {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-height: 120px;
+  max-height: 44vh;
+  overflow-y: auto;
+  margin-bottom: -10px;          /* paper runs into the machine's slot */
+  padding: 40px 16px 22px;
+  background: var(--paper);
+  box-shadow:
+    inset 7px 0 8px -7px rgba(0, 0, 0, 0.25),
+    inset -7px 0 8px -7px rgba(0, 0, 0, 0.25);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 56px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 56px);
+  scrollbar-width: thin;
+}
+
+.tape-lines {
+  list-style: none;
+  font-family: "Courier Prime", monospace;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink);
+  transition: transform 0.45s ease-in, opacity 0.45s ease-in;
+}
+.tape-lines:empty::before {
+  content: "Your sums print here.";
+  display: block;
+  padding: 18px 0;
+  text-align: center;
+  font-style: italic;
+  color: #8f897a;
+}
+.tape.torn .tape-lines {
+  transform: translateY(-60px) rotate(-4deg);
+  opacity: 0;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 1fr 2ch;
+  gap: 10px;
+  padding: 0 4px;
+  text-align: right;
+  border-radius: 2px;
+  animation: feed 0.2s steps(4) both;
+}
+.line .sym { text-align: left; font-weight: 700; }
+.line[data-value] { cursor: pointer; }
+.line[data-value]:hover { background: rgba(42, 46, 96, 0.08); }
+.line[data-value]:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.line.neg { color: var(--ink-red); }
+.line.sub { opacity: 0.7; }
+.line.total { font-weight: 700; font-size: 1.1rem; }
+.line.err { color: var(--ink-red); }
+.line.clear { color: #a29c8d; }
+
+.rule {
+  margin: 4px 0;
+  border-top: 1px dashed var(--ink);
+  opacity: 0.45;
+}
+
+@keyframes feed {
+  from { clip-path: inset(0 0 100% 0); transform: translateY(8px); }
+  to   { clip-path: inset(0); transform: none; }
+}
+
+.tape-tools {
+  position: absolute;
+  right: calc(100% + 12px);
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.tool {
+  padding: 6px 12px;
+  border: 1px solid rgba(236, 230, 217, 0.35);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--putty-light);
+  font: 500 0.8rem "Chivo", sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.tool:hover { background: rgba(236, 230, 217, 0.12); }
+.tool:focus-visible { outline: 2px solid var(--mustard); outline-offset: 2px; }
+
+/* ---------- Machine body ---------- */
+.machine {
+  position: relative;
+  z-index: 2;
+  width: min(360px, 100%);
+  padding: 30px 22px 24px;
+  border-radius: 26px 26px 32px 32px;
+  background: linear-gradient(var(--putty-light), var(--putty) 30%, var(--putty-shade));
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -6px 0 rgba(0, 0, 0, 0.12),
+    0 7px 0 #8d846f,
+    0 34px 60px rgba(0, 0, 0, 0.5);
+  color: #3c362c;
+}
+
+.slot {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: min(272px, 84%);
+  height: 9px;
+  transform: translateX(-50%);
+  border-radius: 5px;
+  background: #2a251f;
+  box-shadow: inset 0 3px 3px #000, 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 10px 2px 14px;
+  font-size: 0.82rem;
+}
+.model { font-weight: 700; font-style: italic; letter-spacing: 0.04em; color: #5b5345; }
+.sound { display: flex; align-items: center; gap: 6px; cursor: pointer; color: #5b5345; }
+.sound input { accent-color: var(--signal); width: 15px; height: 15px; }
+
+.screen {
+  min-height: 94px;
+  margin-bottom: 22px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  text-align: right;
+  border-radius: 10px;
+  background: var(--glass);
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(255, 255, 255, 0.6);
+  font-family: "Share Tech Mono", monospace;
+  color: var(--vfd);
+  text-shadow: 0 0 6px rgba(138, 243, 214, 0.55);
+}
+.screen-expr { min-height: 1.3em; font-size: 0.9rem; opacity: 0.6; word-break: break-all; }
+.screen-main { font-size: 2.6rem; line-height: 1.1; word-break: break-all; }
+.screen-main.small { font-size: 1.7rem; }
+
+/* ---------- Keys ---------- */
+.keys {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.key {
+  height: 58px;
+  border: none;
+  border-radius: 12px;
+  background: var(--key);
+  color: var(--key-text);
+  font: 700 1.3rem "Chivo", sans-serif;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 5px 0 var(--key-edge), 0 8px 10px rgba(0, 0, 0, 0.22);
+  transition: transform 0.06s, box-shadow 0.06s, background 0.15s;
+}
+.key.fn { background: var(--putty-light); color: #3c362c; box-shadow: 0 5px 0 #9d947e, 0 8px 10px rgba(0, 0, 0, 0.18); }
+.key.op { background: var(--mustard); color: #2b1f05; box-shadow: 0 5px 0 var(--mustard-edge), 0 8px 10px rgba(0, 0, 0, 0.22); }
+.key.op.active { background: #f2c14a; }
+.key.eq { background: var(--signal); color: #fff3ec; box-shadow: 0 5px 0 var(--signal-edge), 0 8px 10px rgba(0, 0, 0, 0.22); }
+
+.key:active,
+.key.pressed {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.45), 0 2px 3px rgba(0, 0, 0, 0.2);
+}
+.key:focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
+
+.hint {
+  max-width: 340px;
+  margin-top: 22px;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(236, 230, 217, 0.6);
+}
+
+/* ---------- Small screens ---------- */
+@media (max-width: 600px) {
+  .tape-tools {
+    position: static;
+    order: -1;
+    flex-direction: row;
+    margin-bottom: 10px;
+  }
+  .tape { max-height: 30vh; }
+}
+@media (max-width: 380px) {
+  .machine { padding: 28px 16px 20px; }
+  .keys { gap: 9px; }
+  .key { height: 52px; font-size: 1.15rem; }
+  .screen-main { font-size: 2.2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+  <div class="desk">
+    <section class="tape-wrap" aria-label="Printed tape">
+      <div class="tape-tools">
+        <button class="tool" id="copyTape">Copy tape</button>
+        <button class="tool" id="tearTape">Tear off</button>
+      </div>
+      <div class="tape" id="tape">
+        <ol class="tape-lines" id="tapeLines" aria-live="polite"></ol>
+      </div>
+    </section>
+
+    <main class="machine" aria-label="Calculator">
+      <div class="slot" aria-hidden="true"></div>
+
+      <div class="brand-row">
+        <span class="model">Adder 12</span>
+        <label class="sound"><input type="checkbox" id="soundToggle" checked> Key sound</label>
+      </div>
+
+      <div class="screen" aria-live="polite">
+        <div class="screen-expr" id="expression"></div>
+        <div class="screen-main" id="result">0</div>
+      </div>
+
+      <div class="keys" id="keys">
+        <button class="key fn" data-action="clear">AC</button>
+        <button class="key fn" data-action="delete" aria-label="Delete">⌫</button>
+        <button class="key fn" data-action="percent">%</button>
+        <button class="key op" data-op="/" aria-label="Divide">÷</button>
+
+        <button class="key" data-num="7">7</button>
+        <button class="key" data-num="8">8</button>
+        <button class="key" data-num="9">9</button>
+        <button class="key op" data-op="*" aria-label="Multiply">×</button>
+
+        <button class="key" data-num="4">4</button>
+        <button class="key" data-num="5">5</button>
+        <button class="key" data-num="6">6</button>
+        <button class="key op" data-op="-" aria-label="Subtract">−</button>
+
+        <button class="key" data-num="1">1</button>
+        <button class="key" data-num="2">2</button>
+        <button class="key" data-num="3">3</button>
+        <button class="key op" data-op="+" aria-label="Add">+</button>
+
+        <button class="key" data-action="sign" aria-label="Toggle sign">±</button>
+        <button class="key" data-num="0">0</button>
+        <button class="key" data-action="decimal" aria-label="Decimal point">.</button>
+        <button class="key eq" data-action="equals" aria-label="Equals">=</button>
+      </div>
+    </main>
+
+    <p class="hint">Type with your keyboard too: numbers, + − * /, Enter, Backspace, Esc. Click any number on the tape to use it again.</p>
+  </div>
+
+  <script>
+// Tape Calculator — CodeAlpha Frontend Task 2
+// A desk adding machine: every step prints on a paper tape.
+// Arithmetic uses a small state machine (no eval).
+
+const $ = id => document.getElementById(id);
+const exprEl = $('expression');
+const resultEl = $('result');
+const keysEl = $('keys');
+const tapeEl = $('tape');
+const linesEl = $('tapeLines');
+const soundToggle = $('soundToggle');
+
+const SYMBOLS = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let current = '0';      // number being typed (string)
+let previous = null;    // stored left operand (number)
+let operator = null;    // pending operator
+let resetNext = false;  // next digit starts a new number
+let recalled = false;   // current value came from the tape
+let lastExpr = '';      // small line on the display
+
+/* ---------- Maths ---------- */
+function compute(a, op, b) {
+  switch (op) {
+    case '+': return a + b;
+    case '-': return a - b;
+    case '*': return a * b;
+    case '/': return b === 0 ? NaN : a / b;
+    default: return b;
+  }
+}
+
+function format(n) {
+  if (!isFinite(n)) return 'Error';
+  const r = parseFloat(n.toPrecision(12)); // 0.1 + 0.2 → 0.3
+  return Math.abs(r) >= 1e12 || (r !== 0 && Math.abs(r) < 1e-9)
+    ? r.toExponential(6)
+    : String(r);
+}
+
+function tapeNumber(str) {
+  const n = Number(str);
+  if (Math.abs(n) >= 1e12) return str;
+  return n.toLocaleString('en-US', { maximumFractionDigits: 10 });
+}
+
+/* ---------- Sound (generated, no files needed) ---------- */
+let audioCtx = null;
+
+function tick({ freq = 1800, dur = 0.035, gain = 0.2 } = {}) {
+  if (!soundToggle.checked) return;
+  try {
+    audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+    const len = Math.max(1, Math.floor(audioCtx.sampleRate * dur));
+    const buffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 1.2;
+    const amp = audioCtx.createGain();
+    amp.gain.value = gain;
+    src.connect(filter).connect(amp).connect(audioCtx.destination);
+    src.start();
+  } catch { /* audio not available — stay silent */ }
+}
+
+const keySound = () => tick({ freq: 1400, dur: 0.045, gain: 0.28 });
+
+function printSound(chars) {
+  const n = Math.min(chars, 10);
+  for (let i = 0; i < n; i++) {
+    setTimeout(() => tick({ freq: 3600, dur: 0.012, gain: 0.08 }), i * 24);
+  }
+}
+
+/* ---------- Tape ---------- */
+function scrollTape() {
+  tapeEl.scrollTo({ top: tapeEl.scrollHeight, behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+
+function print(value, sym = '', kind = '') {
+  const li = document.createElement('li');
+  li.className = `line ${kind}`.trim();
+
+  const isNumber = value !== 'Error' && !isNaN(Number(value));
+  if (isNumber && Number(value) < 0) li.classList.add('neg');
+
+  const amt = document.createElement('span');
+  amt.className = 'amt';
+  amt.textContent = isNumber ? tapeNumber(value) : value;
+  const symbol = document.createElement('span');
+  symbol.className = 'sym';
+  symbol.textContent = sym;
+  li.append(amt, symbol);
+
+  if (isNumber && kind !== 'clear') {
+    li.dataset.value = String(Number(value));
+    li.tabIndex = 0;
+    li.title = 'Use this number';
+  }
+
+  linesEl.appendChild(li);
+  scrollTape();
+  printSound(String(value).length + 2);
+}
+
+function printRule() {
+  const li = document.createElement('li');
+  li.className = 'rule';
+  li.setAttribute('aria-hidden', 'true');
+  linesEl.appendChild(li);
+}
+
+/* ---------- Display ---------- */
+function update() {
+  resultEl.textContent = current;
+  resultEl.classList.toggle('small', current.length > 10);
+
+  if (operator !== null) {
+    let text = `${format(previous)} ${SYMBOLS[operator]}`;
+    if (!resetNext) {
+      // Live preview while the second number is being typed
+      const preview = compute(previous, operator, parseFloat(current));
+      text += ` ${current} = ${format(preview)}`;
+    }
+    exprEl.textContent = text;
+  } else {
+    exprEl.textContent = lastExpr;
+  }
+
+  document.querySelectorAll('.key.op').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.op === operator && resetNext);
+  });
+}
+
+/* ---------- Input ---------- */
+function startFresh() {
+  if (current === 'Error' || resetNext || recalled) {
+    current = '0';
+    resetNext = false;
+    recalled = false;
+    if (operator === null) lastExpr = '';
+  }
+}
+
+function inputDigit(d) {
+  startFresh();
+  if (current.replace(/[-.]/g, '').length >= 15) return;
+  if (current === '0') current = d;
+  else if (current === '-0') current = '-' + d;
+  else current += d;
+}
+
+function inputDecimal() {
+  startFresh();
+  if (!current.includes('.')) current += '.';
+}
+
+function resetState() {
+  current = '0';
+  previous = null;
+  operator = null;
+  resetNext = false;
+  recalled = false;
+  lastExpr = '';
+}
+
+function showError() {
+  resetState();
+  current = 'Error';
+  resetNext = true;
+  lastExpr = 'Cannot divide by zero';
+  print('Error', 'E', 'err');
+}
+
+function setOperator(op) {
+  if (current === 'Error') return;
+  const value = parseFloat(current);
+
+  if (operator !== null && !resetNext) {
+    // Chained step: print the operand, then a subtotal (◇)
+    print(current, SYMBOLS[operator]);
+    const r = compute(previous, operator, value);
+    if (!isFinite(r)) return showError();
+    previous = r;
+    current = format(r);
+    print(current, '◇', 'sub');
+  } else if (operator === null) {
+    previous = value;
+    print(current, '');
+  }
+
+  operator = op;
+  resetNext = true;
+  recalled = false;
+  lastExpr = '';
+}
+
+function equals() {
+  if (operator === null || current === 'Error') return;
+  const b = resetNext ? previous : parseFloat(current);
+  print(format(b), SYMBOLS[operator]);
+
+  const r = compute(previous, operator, b);
+  if (!isFinite(r)) return showError();
+
+  lastExpr = `${format(previous)} ${SYMBOLS[operator]} ${format(b)} =`;
+  current = format(r);
+  previous = null;
+  operator = null;
+  resetNext = true;
+  recalled = false;
+
+  printRule();
+  print(current, 'T', 'total');
+}
+
+function clearAll() {
+  const last = linesEl.lastElementChild;
+  if (last && !last.classList.contains('clear')) print('0', 'C', 'clear');
+  resetState();
+}
+
+function deleteLast() {
+  if (current === 'Error' || resetNext || recalled) {
+    current = '0';
+    resetNext = false;
+    recalled = false;
+    return;
+  }
+  current = current.slice(0, -1);
+  if (current === '' || current === '-') current = '0';
+}
+
+function percent() {
+  if (current === 'Error') return;
+  current = format(parseFloat(current) / 100);
+  print(current, '%');
+}
+
+function toggleSign() {
+  if (current === 'Error') return;
+  if (resetNext && operator !== null) { current = '0'; resetNext = false; }
+  current = current.startsWith('-') ? current.slice(1) : '-' + current;
+}
+
+function recall(value) {
+  if (current === 'Error') resetState();
+  current = value;
+  recalled = true;
+  resetNext = false;
+  if (operator === null) lastExpr = 'From the tape';
+  // Move focus off the tape line so the next Enter means "equals"
+  if (document.activeElement?.matches?.('li[data-value]')) document.activeElement.blur();
+  keySound();
+  update();
+}
+
+const actions = {
+  clear: clearAll,
+  delete: deleteLast,
+  percent,
+  sign: toggleSign,
+  decimal: inputDecimal,
+  equals,
+};
+
+/* ---------- Events ---------- */
+keysEl.addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  keySound();
+  if (btn.dataset.num) inputDigit(btn.dataset.num);
+  else if (btn.dataset.op) setOperator(btn.dataset.op);
+  else if (btn.dataset.action) actions[btn.dataset.action]();
+  update();
+});
+
+linesEl.addEventListener('click', e => {
+  const li = e.target.closest('li[data-value]');
+  if (li) recall(li.dataset.value);
+});
+
+function flash(selector) {
+  const btn = document.querySelector(selector);
+  if (!btn) return;
+  btn.classList.add('pressed');
+  setTimeout(() => btn.classList.remove('pressed'), 110);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key;
+
+  // Enter on a focused tape line reuses that number
+  if (k === 'Enter' && e.target.matches?.('li[data-value]')) {
+    e.preventDefault();
+    recall(e.target.dataset.value);
+    return;
+  }
+  // Let focused buttons handle their own Enter/Space
+  if ((k === 'Enter' || k === ' ') && e.target.tagName === 'BUTTON') return;
+
+  let handled = true;
+  if (/^[0-9]$/.test(k)) { inputDigit(k); flash(`[data-num="${k}"]`); }
+  else if (k === '.' || k === ',') { inputDecimal(); flash('[data-action="decimal"]'); }
+  else if (['+', '-', '*', '/'].includes(k)) { setOperator(k); flash(`[data-op="${k}"]`); }
+  else if (k === 'x' || k === 'X') { setOperator('*'); flash('[data-op="*"]'); }
+  else if (k === 'Enter' || k === '=') { equals(); flash('[data-action="equals"]'); }
+  else if (k === 'Backspace') { deleteLast(); flash('[data-action="delete"]'); }
+  else if (k === 'Escape' || k === 'Delete') { clearAll(); flash('[data-action="clear"]'); }
+  else if (k === '%') { percent(); flash('[data-action="percent"]'); }
+  else handled = false;
+
+  if (handled) {
+    e.preventDefault();
+    keySound();
+    update();
+  }
+});
+
+// Tear off the tape
+$('tearTape').addEventListener('click', () => {
+  if (!linesEl.children.length) return;
+  tick({ freq: 700, dur: 0.22, gain: 0.35 });
+  tapeEl.classList.add('torn');
+  setTimeout(() => {
+    linesEl.innerHTML = '';
+    tapeEl.classList.remove('torn');
+  }, reduceMotion ? 0 : 460);
+});
+
+// Copy the tape as plain text
+$('copyTape').addEventListener('click', async e => {
+  const btn = e.currentTarget;
+  const text = [...linesEl.children].map(li => {
+    if (li.classList.contains('rule')) return '------------';
+    const amt = li.querySelector('.amt').textContent;
+    const sym = li.querySelector('.sym').textContent;
+    return `${amt.padStart(14)} ${sym}`.trimEnd();
+  }).join('\n');
+  if (!text) return;
+
+  const label = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'Copied';
+  } catch {
+    btn.textContent = 'Copy failed';
+  }
+  setTimeout(() => { btn.textContent = label; }, 1400);
+});
+
+update();
+</script>
+</body>
+</html>
